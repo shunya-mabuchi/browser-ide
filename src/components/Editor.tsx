@@ -1,18 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { EditorView } from '@codemirror/view'
-import { basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
+import { basicSetup } from 'codemirror'
 import { javascript } from '@codemirror/lang-javascript'
-import { oneDark } from '@codemirror/theme-one-dark'
+import { editorExtensions } from '../lib/editorTheme'
 
 interface Props {
   value: string
   onChange: (value: string) => void
+  onCursorChange?: (line: number, col: number) => void
 }
 
-export function Editor({ value, onChange }: Props) {
+export function Editor({ value, onChange, onCursorChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const onChangeRef = useRef(onChange)
+  const onCursorRef = useRef(onCursorChange)
+
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
+  useEffect(() => { onCursorRef.current = onCursorChange }, [onCursorChange])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -23,15 +29,16 @@ export function Editor({ value, onChange }: Props) {
         extensions: [
           basicSetup,
           javascript({ jsx: true, typescript: true }),
-          oneDark,
+          ...editorExtensions,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
-              onChange(update.state.doc.toString())
+              onChangeRef.current(update.state.doc.toString())
             }
-          }),
-          EditorView.theme({
-            '&': { height: '100%', fontSize: '13px' },
-            '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, monospace' },
+            if ((update.docChanged || update.selectionSet) && onCursorRef.current) {
+              const pos = update.state.selection.main.head
+              const line = update.state.doc.lineAt(pos)
+              onCursorRef.current(line.number, pos - line.from + 1)
+            }
           }),
         ],
       }),

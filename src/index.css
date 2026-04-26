@@ -1,16 +1,136 @@
 @import 'tailwindcss';
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+:root {
+  /* Surfaces */
+  --bg:        #09090b;
+  --surface:   #0f0f12;
+  --surface2:  #141418;
+  --surface3:  #1a1a20;
+  --border:    #1e1e24;
+  --border2:   #2a2a32;
+
+  /* Amber hierarchy */
+  --amber-strong: #f0b84a;
+  --amber:        #e8a838;
+  --amber-mute:   #a87c2e;
+  --amber-dim:    rgba(232, 168, 56, 0.12);
+  --amber-glow:   rgba(232, 168, 56, 0.06);
+  --amber-flash:  rgba(232, 168, 56, 0.18);
+
+  /* Status (noir-tuned: less saturated than default tailwind) */
+  --green:     #6dc28a;
+  --green-dim: rgba(109, 194, 138, 0.14);
+  --red:       #d96868;
+  --red-dim:   rgba(217, 104, 104, 0.14);
+
+  /* Text */
+  --text:       #c4c4cc;
+  --text-muted: #6b6b76;
+  --text-dim:   #3a3a42;
+
+  /* Type & motion */
+  --font: 'JetBrains Mono', ui-monospace, monospace;
+  --ease: cubic-bezier(0.32, 0.72, 0.24, 1);
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.2, 1.0);
 }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: #0d0d0d;
-  color: #e5e7eb;
-  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grain overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.6;
+}
+
+/* Subtle vignette — gives depth like a CRT screen edge */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.35) 100%);
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Numeric / instrument style — used in status bar, percentages, line:col */
+.tabular { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+/* Buttons receive a subtle press effect */
+.press {
+  transition: transform 80ms var(--ease-snap), opacity 120ms var(--ease), background-color 150ms var(--ease);
+}
+.press:active { transform: scale(0.96); }
+
+/* Selection highlight */
+::selection { background: var(--amber-flash); color: var(--text); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Run-flash: short amber wash applied to a container after "applied" or "executed" */
+@keyframes run-flash {
+  0%   { box-shadow: inset 0 0 0 1px var(--amber-flash), 0 0 0 0 var(--amber-flash); background-color: var(--amber-glow); }
+  60%  { box-shadow: inset 0 0 0 1px transparent, 0 0 0 0 transparent; background-color: transparent; }
+  100% { box-shadow: none; background-color: transparent; }
+}
+
+/* Slide-in for screen transitions */
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in { animation: fadeIn 0.3s ease both; }
+.animate-pulse-amber { animation: pulse-amber 2s ease-in-out infinite; }
+.cursor-blink { animation: blink 1.1s step-end infinite; }
+.animate-flash { animation: run-flash 600ms var(--ease) both; }
+.animate-screen-in { animation: scale-in 320ms var(--ease) both; }
+
+/* Bezel — subtle inner frame for the preview panel to stop the white from "floating" */
+.bezel {
+  position: relative;
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    inset 0 1px 0 rgba(255,255,255,0.02),
+    0 8px 24px rgba(0,0,0,0.4);
 }
