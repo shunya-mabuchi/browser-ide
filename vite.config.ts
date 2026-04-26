@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -27,10 +28,12 @@ export default defineConfig({
       },
     }),
   ],
-  optimizeDeps: {
-    exclude: ['@mlc-ai/web-llm'],
-  },
   worker: {
     format: 'es',
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
+    globals: true,
   },
 })
