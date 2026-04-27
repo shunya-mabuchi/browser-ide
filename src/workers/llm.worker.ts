@@ -10,9 +10,10 @@ interface ChatMessage {
 }
 
 type Dtype = 'q4f16' | 'q4' | 'fp16' | 'int8'
+type Device = 'webgpu' | 'wasm'
 
 type WorkerMessage =
-  | { type: 'load'; modelId: string; dtype?: Dtype }
+  | { type: 'load'; modelId: string; dtype?: Dtype; device?: Device }
   | { type: 'chat'; messages: ChatMessage[] }
   | { type: 'abort' }
 
@@ -79,9 +80,11 @@ self.addEventListener('message', async (e: MessageEvent<WorkerMessage>) => {
 
   if (msg.type === 'load') {
     try {
+      const device: Device = msg.device ?? 'webgpu'
+      const dtype: Dtype = msg.dtype ?? (device === 'webgpu' ? 'q4f16' : 'q4')
       generator = await pipeline('text-generation', msg.modelId, {
-        device: 'webgpu',
-        dtype: msg.dtype ?? 'q4f16',
+        device,
+        dtype,
         progress_callback: handleProgress,
       })
       self.postMessage({ type: 'done' } satisfies WorkerResponse)
