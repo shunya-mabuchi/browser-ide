@@ -2223,3 +2223,96 @@ git commit -m "docs: Week 1 完了をロードマップに反映"
 | Splitter の縦分割が綺麗に動かない | `Splitter.tsx` の orientation 処理を独立にチェック（Task 10 の Step 2） |
 | ChatPanel の状態切替で再レンダーが多い | `ChatPanel` を `React.memo` でラップ（最適化、必須ではない） |
 | ModelSelector が isModal で見た目崩れる | 既存スタイルとの調整、`overflow-y: auto` 追加など |
+
+---
+
+## 実装完了レポート（2026-04-28）
+
+ステータス: ✅ **完了**。Task 1〜15 すべて実装済み、テスト 12/12 pass、ビルド成功、dev server 動作確認済み。
+
+### 計画通りに実装した項目（Task 1〜15）
+
+すべて実装済み。詳細は git log の `feature/week1-llm-lifecycle` ブランチを参照。
+
+### 計画外で追加された主要変更
+
+実装中に判明した課題・ユーザーフィードバックで追加された変更:
+
+#### 1. 環境セットアップの修正
+- `npm install --legacy-peer-deps` 必須（vite-plugin-pwa@1.2.0 と vite@8 の peer 衝突）
+- Node 22 が必須（既定シェルが Node 14、Vitest 4 / Vite 8 が未対応）
+- `.nvmrc` に `22` を pin、`package.json` の `engines.node >=20` 明記
+- **Vitest を v2 → v4 に変更**（spec で `^2` 指定したが Vite 8 peer 非対応のため）
+
+#### 2. レイアウト方式の刷新（VS Code 風への昇格）
+
+spec ではセクション 1 でレイアウト「軸」を 3 つの Splitter ネストとして定義していたが、実装中に以下の問題が判明:
+
+- percentage Splitter ネストでは「Explorer 閉じても center が広がらない」
+- Splitter ドラッグで一方が極小になり、「黒い空白」が出る
+
+ユーザーフィードバックにより以下の VS Code 風デザインに変更:
+
+- **Activity Bar 新設**（`src/components/ActivityBar.tsx`）: 左端 44px の固定アイコン列で Explorer/Chat/Console を toggle
+- **EditorTabs 新設**（`src/components/EditorTabs.tsx`）: `main.tsx` + `🌐 Preview` の 2 タブ。Preview は ✗ で閉じれる
+- **ResizableHandle 新設**（`src/components/ResizableHandle.tsx`）: Explorer/Chat は **pixel ベース幅**（240px / 380px）でドラッグリサイズ。center は flex:1 で残りを取る
+- 結果として「Explorer 閉じる → center だけ広がる」（VS Code と同じ挙動）が実現
+
+#### 3. UI バグ修正の積み重ね
+
+実機検証で発覚した複数のバグを修正:
+
+- **Splitter ドラッグ時の黒空白**: パネル root の `flex flex-col h-full` だけでは flex-row ラッパー内でコンテンツ幅にしかならない。`w-full min-w-0` を追加
+- **Console 下の余白**: flex 子に `min-h-0` を追加（`min-height: auto` の既定を上書き）
+- **Explorer placeholder の空白感**: 中央寄せの小さなテキストではなく、mock ツリー + 「Week 2 で開放予定」カードで視覚的に充填
+- **localStorage 永続化キー**: 旧バージョンの破損値を強制リセットするため migration バージョンを v1 → v2 → v3 → v4 と複数回 bump
+
+#### 4. ChatPanel の実用化
+
+spec に書かれていなかったが、実用上必要だった改善:
+
+- **モデル切替/アンロードドロップダウン**: portal で `document.body` に描画、document click リスナーで close
+  - 当初 `mousedown` リスナーだったが portal の click より先に発火 → menu unmount → click 届かずバグ → `click` リスナーに変更
+- **textarea auto-resize**: 入力に応じて 2〜10 行で自動拡張、超過時は overflow-y:auto でスクロール
+- **IME 確定 Enter のスキップ**: `e.nativeEvent.isComposing` で日本語確定 Enter を「送信」と誤判定しないように
+- **Esc キーの段階的アクション**: 生成中→中止 / 入力あり→クリア / 空→blur
+
+#### 5. CodeMirror エディタの強化
+
+spec では明示されていなかったが、IDE として最低限必要なため追加:
+
+- `history()` extension + `historyKeymap` を明示的に登録（undo/redo）
+- `defaultKeymap` で `⌘D` multi-cursor、`⌥↑/↓` 行移動、`⌘/` コメント等
+- `indentWithTab` で Tab/Shift+Tab インデント
+
+#### 6. Cross-platform キーラベル
+
+spec にはなかったが、Mac/Windows 両対応のため追加:
+
+- `src/lib/platform.ts` の `key('Mod', 'X')` ヘルパー
+- Mac: `⌘B` / Windows・Linux: `Ctrl+B`
+- Activity Bar・status bar・閉じるツールチップ等すべての表記に適用
+
+### Week 1 で生じた spec への反映余地（Week 2 以降の参考）
+
+- spec セクション 1 のレイアウト構造記述は実装と乖離（Splitter 3 ネスト → Activity Bar + pixel ResizableHandle 構成）。Week 2 開始時に spec の図を更新するのが望ましい
+- `bide.split.console` 等の localStorage キー名も実装で `bide.split.v4.console` になっている
+- 「Console」の役割が当初よりも「ステータス表示専用 placeholder」寄り（実ログは Week 3）
+
+### 数値サマリ
+
+- コミット数: 22（feature/week1-llm-lifecycle ブランチ）
+- 新規ファイル: 11（src 配下）
+- 修正ファイル: 5（既存）
+- テスト: 12 件 pass（`llmDevice.ts`, `storage.ts`）
+- バンドルサイズ: 799 KB（gzip 257 KB）
+- dev server boot: ~270ms
+
+### Week 2 への引き継ぎ
+
+優先度高い順:
+
+1. **OPFS + FsAdapter / FsAdapterSync** — Phase 2 の基盤
+2. **WorkspaceStore + 本物の FileTree** — placeholder を実装に置き換え
+3. **TabManager の前準備**（Week 3 の素地）
+4. spec のレイアウト記述を Week 1 実装に合わせて更新（任意）

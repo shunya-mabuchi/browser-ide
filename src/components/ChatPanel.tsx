@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { CornerDownLeft, Square } from 'lucide-react'
+import type { ModelState } from '../hooks/useLlmModel'
+import { key } from '../lib/platform'
 
 export interface Message {
   role: 'user' | 'assistant'
@@ -13,6 +16,12 @@ interface Props {
   onAbort: () => void
   onApplyCode: (code: string) => void
   inputRef?: React.RefObject<HTMLTextAreaElement | null>
+  modelState: ModelState
+  onPickModel: () => void
+  onSwitchModel: () => void
+  onUnloadModel: () => void
+  onCancelLoad: () => void
+  onRetryLoad: () => void
 }
 
 const SAMPLE_PROMPTS = [
@@ -21,6 +30,8 @@ const SAMPLE_PROMPTS = [
   '電卓を作って',
   'ボタンの色を青に変えて',
 ]
+
+const MAX_INPUT_LINES = 10
 
 function extractCodeBlock(text: string): string | null {
   const match = text.match(/```(?:\w+)?\n([\s\S]+?)```/)
@@ -62,15 +73,287 @@ function MessageBubble({ msg, onApplyCode }: { msg: Message; onApplyCode: (c: st
   )
 }
 
-export function ChatPanel({ messages, isGenerating, onSend, onAbort, onApplyCode, inputRef }: Props) {
+const menuItemStyle: React.CSSProperties = {
+  width: '100%',
+  textAlign: 'left',
+  padding: '8px 12px',
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--text)',
+  cursor: 'pointer',
+  fontSize: 13,
+}
+
+function HeaderBar({
+  modelState,
+  isGenerating,
+  onSwitchModel,
+  onUnloadModel,
+}: {
+  modelState: ModelState
+  isGenerating: boolean
+  onSwitchModel: () => void
+  onUnloadModel: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuPos(null)
+      return
+    }
+    const btn = buttonRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    setMenuPos({
+      top: rect.bottom + 4,
+      right: window.innerWidth - rect.right,
+    })
+
+    const onDocClick = (e: MouseEvent) => {
+      if (!btn.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('click', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('click', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [menuOpen])
+
+  return (
+    <div
+      className="px-4 py-2.5 flex items-center gap-2 shrink-0"
+      style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}
+    >
+      <span
+        className="w-2 h-2 rounded-full animate-pulse-amber"
+        style={{ background: 'var(--amber)', boxShadow: '0 0 6px var(--amber-strong)' }}
+      />
+      <span className="text-sm" style={{ color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+        AIチャット
+      </span>
+      {isGenerating && modelState.kind === 'ready' && (
+        <span className="text-sm tabular" style={{ color: 'var(--amber-mute)' }}>
+          生成中<span className="cursor-blink">_</span>
+        </span>
+      )}
+      {modelState.kind === 'ready' && (
+        <button
+          ref={buttonRef}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="press text-sm ml-auto"
+          style={{
+            background: menuOpen ? 'var(--amber-glow)' : 'transparent',
+            border: '1px solid var(--border2)',
+            color: menuOpen ? 'var(--amber)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: '2px 10px',
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+          }}
+          aria-label="モデル操作メニュー"
+        >
+          ⋯
+        </button>
+      )}
+      {menuOpen && menuPos && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: menuPos.top,
+            right: menuPos.right,
+            background: 'var(--surface2)',
+            border: '1px solid var(--border2)',
+            borderRadius: 4,
+            minWidth: 200,
+            zIndex: 1000,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+            overflow: 'hidden',
+          }}
+        >
+          <button
+            onClick={() => { setMenuOpen(false); onSwitchModel() }}
+            style={menuItemStyle}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--amber-glow)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            モデル切替
+          </button>
+          <button
+            onClick={() => { setMenuOpen(false); onUnloadModel() }}
+            style={menuItemStyle}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--amber-glow)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            モデルをアンロード
+          </button>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+function IdleView({ onPickModel }: { onPickModel: () => void }) {
+  return (
+    <div className="flex-1 flex items-center justify-center flex-col gap-4 p-6">
+      <p className="text-sm text-center" style={{ color: 'var(--text-dim)' }}>
+        AI を使うにはモデルを選択してください
+      </p>
+      <button
+        onClick={onPickModel}
+        className="press"
+        style={{
+          padding: '8px 20px',
+          background: 'var(--amber-strong)',
+          color: 'var(--bg)',
+          border: 'none',
+          borderRadius: 2,
+          cursor: 'pointer',
+          fontSize: 13,
+          fontWeight: 500,
+          letterSpacing: '0.05em',
+          boxShadow: '0 0 16px var(--amber-glow)',
+        }}
+      >
+        モデルを選択
+      </button>
+    </div>
+  )
+}
+
+function LoadingView({
+  state,
+  onCancel,
+}: {
+  state: Extract<ModelState, { kind: 'loading' }>
+  onCancel: () => void
+}) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+      <p className="text-sm" style={{ color: 'var(--text)' }}>
+        {state.modelName}
+      </p>
+      <p className="text-xs tabular" style={{ color: 'var(--text-dim)' }}>
+        {state.progressText} ({Math.round(state.progress * 100)}%)
+      </p>
+      <div
+        style={{
+          width: '80%',
+          height: 2,
+          background: 'var(--border2)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${state.progress * 100}%`,
+            height: '100%',
+            background: 'var(--amber-strong)',
+            boxShadow: '0 0 8px var(--amber)',
+            transition: 'width 200ms ease',
+          }}
+        />
+      </div>
+      <p className="text-xs text-center" style={{ color: 'var(--text-dim)' }}>
+        ※ ダウンロード中もエディタは使えます
+      </p>
+      <button
+        onClick={onCancel}
+        className="press"
+        style={{
+          padding: '6px 16px',
+          background: 'transparent',
+          color: 'var(--text-dim)',
+          border: '1px solid var(--border2)',
+          cursor: 'pointer',
+          fontSize: 12,
+        }}
+      >
+        キャンセル
+      </button>
+    </div>
+  )
+}
+
+function ErrorView({
+  state,
+  onRetry,
+  onPickModel,
+}: {
+  state: Extract<ModelState, { kind: 'error' }>
+  onRetry: () => void
+  onPickModel: () => void
+}) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+      <p className="text-sm" style={{ color: 'var(--red)' }}>
+        モデル読込失敗
+      </p>
+      <p className="text-xs text-center" style={{ color: 'var(--text-dim)', maxWidth: 280 }}>
+        {state.message}
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={onRetry}
+          className="press"
+          style={{
+            padding: '6px 16px',
+            background: 'var(--amber-strong)',
+            color: 'var(--bg)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 12,
+          }}
+        >
+          再試行
+        </button>
+        <button
+          onClick={onPickModel}
+          className="press"
+          style={{
+            padding: '6px 16px',
+            background: 'transparent',
+            color: 'var(--text)',
+            border: '1px solid var(--border2)',
+            cursor: 'pointer',
+            fontSize: 12,
+          }}
+        >
+          別モデルを選ぶ
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ReadyView({
+  messages,
+  isGenerating,
+  onSend,
+  onAbort,
+  onApplyCode,
+  inputRef,
+}: {
+  messages: Message[]
+  isGenerating: boolean
+  onSend: (text: string) => void
+  onAbort: () => void
+  onApplyCode: (code: string) => void
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>
+}) {
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
   const localInputRef = useRef<HTMLTextAreaElement>(null)
   const textareaRef = inputRef ?? localInputRef
 
-  // Auto-scroll only when the user is already near the bottom.
-  // If they scrolled up to read history, don't yank them back.
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -86,9 +369,23 @@ export function ChatPanel({ messages, isGenerating, onSend, onAbort, onApplyCode
     const el = scrollRef.current
     if (!el) return
     if (!stickToBottomRef.current) return
-    // Use instant scroll while streaming so it actually keeps up.
     el.scrollTop = el.scrollHeight
   }, [messages])
+
+  // Auto-grow textarea up to MAX_INPUT_LINES, then scroll
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const styles = getComputedStyle(el)
+    const lineHeight = parseFloat(styles.lineHeight) || 22
+    const paddingY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom)
+    const minHeight = lineHeight * 2 + paddingY
+    const maxHeight = lineHeight * MAX_INPUT_LINES + paddingY
+    const next = Math.max(minHeight, Math.min(el.scrollHeight, maxHeight))
+    el.style.height = `${next}px`
+    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [input, textareaRef])
 
   const handleSubmit = (text?: string) => {
     const value = (text ?? input).trim()
@@ -99,25 +396,7 @@ export function ChatPanel({ messages, isGenerating, onSend, onAbort, onApplyCode
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--surface)' }}>
-      <div
-        className="px-4 py-2.5 flex items-center gap-2 shrink-0"
-        style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}
-      >
-        <span
-          className="w-2 h-2 rounded-full animate-pulse-amber"
-          style={{ background: 'var(--amber)', boxShadow: '0 0 6px var(--amber-strong)' }}
-        />
-        <span className="text-sm" style={{ color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-          AIチャット
-        </span>
-        {isGenerating && (
-          <span className="text-sm ml-auto tabular" style={{ color: 'var(--amber-mute)' }}>
-            生成中<span className="cursor-blink">_</span>
-          </span>
-        )}
-      </div>
-
+    <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
         {messages.length === 0 && (
           <div className="flex flex-col gap-3 mt-1">
@@ -135,25 +414,13 @@ export function ChatPanel({ messages, isGenerating, onSend, onAbort, onApplyCode
                     border: '1px solid var(--border2)',
                     background: 'transparent',
                   }}
-                  onMouseEnter={(e) => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.color = 'var(--amber)'
-                    el.style.borderColor = 'var(--amber-mute)'
-                    el.style.background = 'var(--amber-glow)'
-                  }}
-                  onMouseLeave={(e) => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.color = 'var(--text-muted)'
-                    el.style.borderColor = 'var(--border2)'
-                    el.style.background = 'transparent'
-                  }}
                 >
                   {p}
                 </button>
               ))}
             </div>
             <span className="text-xs mt-2" style={{ color: 'var(--text-dim)' }}>
-              ⌘K で入力にフォーカス
+              {key('Mod', 'K')} で入力にフォーカス
             </span>
           </div>
         )}
@@ -172,9 +439,22 @@ export function ChatPanel({ messages, isGenerating, onSend, onAbort, onApplyCode
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
+              // IME 変換中の Enter は無視（日本語入力の確定で送信されないように）
+              if (e.nativeEvent.isComposing) return
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handleSubmit()
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                if (isGenerating) {
+                  onAbort()
+                } else if (input.length > 0) {
+                  setInput('')
+                } else {
+                  ;(e.currentTarget as HTMLTextAreaElement).blur()
+                }
               }
             }}
             placeholder="メッセージを入力..."
@@ -197,6 +477,35 @@ export function ChatPanel({ messages, isGenerating, onSend, onAbort, onApplyCode
           </button>
         </div>
       </div>
+    </>
+  )
+}
+
+export function ChatPanel(props: Props) {
+  const { modelState } = props
+  return (
+    <div className="flex flex-col h-full w-full min-w-0" style={{ background: 'var(--surface)' }}>
+      <HeaderBar
+        modelState={modelState}
+        isGenerating={props.isGenerating}
+        onSwitchModel={props.onSwitchModel}
+        onUnloadModel={props.onUnloadModel}
+      />
+      {modelState.kind === 'idle' && <IdleView onPickModel={props.onPickModel} />}
+      {modelState.kind === 'loading' && <LoadingView state={modelState} onCancel={props.onCancelLoad} />}
+      {modelState.kind === 'error' && (
+        <ErrorView state={modelState} onRetry={props.onRetryLoad} onPickModel={props.onPickModel} />
+      )}
+      {modelState.kind === 'ready' && (
+        <ReadyView
+          messages={props.messages}
+          isGenerating={props.isGenerating}
+          onSend={props.onSend}
+          onAbort={props.onAbort}
+          onApplyCode={props.onApplyCode}
+          inputRef={props.inputRef}
+        />
+      )}
     </div>
   )
 }

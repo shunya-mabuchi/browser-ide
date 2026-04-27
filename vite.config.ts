@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -27,10 +27,12 @@ export default defineConfig({
       },
     }),
   ],
-  optimizeDeps: {
-    exclude: ['@mlc-ai/web-llm'],
-  },
   worker: {
     format: 'es',
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
+    globals: true,
   },
 })
