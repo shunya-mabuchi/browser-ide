@@ -88,17 +88,19 @@ function AppInner() {
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const lastLoadOptsRef = useRef<{ modelId: string; modelName?: string } | null>(null)
 
-  // Migrate old localStorage keys (one-time, v3 = activity bar/tabs era)
+  // Migrate old localStorage keys (one-time, v4 = layout fix era)
   useEffect(() => {
-    if (localStorage.getItem('bide.migrated.v3')) return
+    if (localStorage.getItem('bide.migrated.v4')) return
     for (const k of [
       'bide.split.h', 'bide.split.v',
       'bide.split.tree', 'bide.split.chat', 'bide.split.console', 'bide.split.preview',
-      'bide.migrated.v1', 'bide.migrated.v2',
+      'bide.split.v3.tree', 'bide.split.v3.chat', 'bide.split.v3.console',
+      'bide.show.explorer', 'bide.show.chat', 'bide.show.console',
+      'bide.migrated.v1', 'bide.migrated.v2', 'bide.migrated.v3',
     ]) {
       localStorage.removeItem(k)
     }
-    localStorage.setItem('bide.migrated.v3', 'true')
+    localStorage.setItem('bide.migrated.v4', 'true')
   }, [])
 
   // Persist panel toggles
@@ -235,55 +237,37 @@ function AppInner() {
   const lineCount = useMemo(() => code.split('\n').length, [code])
   const charCount = code.length
 
-  // Center area renders editor area + console (if shown)
-  const centerArea = (
-    <div className="flex flex-col h-full w-full min-w-0">
-      {showConsole ? (
-        <Splitter storageKey="bide.split.v3.console" defaultPercent={70} min={30} max={92} orientation="horizontal">
-          <EditorArea
-            activeTab={activeTab}
-            previewOpen={previewOpen}
-            onSelectTab={handleSelectTab}
-            onClosePreview={closePreviewTab}
-            onRun={runPreview}
-            code={code}
-            onCodeChange={setCode}
-            onCursorChange={handleCursorChange}
-            cursor={cursor}
-            lineCount={lineCount}
-            charCount={charCount}
-            previewCode={previewCode}
-            onPreviewStatus={setPreviewStatus}
-            editorFlashKey={editorFlashKey}
-            statusInfo={statusInfo}
-          />
-          <Console onClose={() => setShowConsole(false)} />
-        </Splitter>
-      ) : (
-        <EditorArea
-          activeTab={activeTab}
-          previewOpen={previewOpen}
-          onSelectTab={handleSelectTab}
-          onClosePreview={closePreviewTab}
-          onRun={runPreview}
-          code={code}
-          onCodeChange={setCode}
-          onCursorChange={handleCursorChange}
-          cursor={cursor}
-          lineCount={lineCount}
-          charCount={charCount}
-          previewCode={previewCode}
-          onPreviewStatus={setPreviewStatus}
-          editorFlashKey={editorFlashKey}
-          statusInfo={statusInfo}
-        />
-      )}
-    </div>
+  const editorArea = (
+    <EditorArea
+      activeTab={activeTab}
+      previewOpen={previewOpen}
+      onSelectTab={handleSelectTab}
+      onClosePreview={closePreviewTab}
+      onRun={runPreview}
+      code={code}
+      onCodeChange={setCode}
+      onCursorChange={handleCursorChange}
+      cursor={cursor}
+      lineCount={lineCount}
+      charCount={charCount}
+      previewCode={previewCode}
+      onPreviewStatus={setPreviewStatus}
+      editorFlashKey={editorFlashKey}
+      statusInfo={statusInfo}
+    />
   )
+
+  // Center area renders editor area + console (if shown)
+  const centerArea = showConsole ? (
+    <Splitter storageKey="bide.split.v4.console" defaultPercent={70} min={30} max={85} orientation="horizontal">
+      {editorArea}
+      <Console onClose={() => setShowConsole(false)} />
+    </Splitter>
+  ) : editorArea
 
   // Compose center + chat (right pane)
   const centerWithChat = showChat ? (
-    <Splitter storageKey="bide.split.v3.chat" defaultPercent={70} min={45} max={88} orientation="vertical">
+    <Splitter storageKey="bide.split.v4.chat" defaultPercent={70} min={45} max={85} orientation="vertical">
       {centerArea}
       <ChatPanel
         messages={messages}
@@ -304,7 +288,7 @@ function AppInner() {
 
   // Compose explorer + (center + chat)
   const mainArea = showExplorer ? (
-    <Splitter storageKey="bide.split.v3.tree" defaultPercent={18} min={10} max={32} orientation="vertical">
+    <Splitter storageKey="bide.split.v4.tree" defaultPercent={18} min={10} max={32} orientation="vertical">
       <FileTreePlaceholder onClose={() => setShowExplorer(false)} />
       {centerWithChat}
     </Splitter>
@@ -358,7 +342,7 @@ type EditorAreaProps = {
 
 function EditorArea(props: EditorAreaProps) {
   return (
-    <div className="flex flex-col h-full w-full min-w-0">
+    <div className="flex flex-col h-full w-full min-w-0 min-h-0">
       <EditorTabs
         active={props.activeTab}
         previewOpen={props.previewOpen}
@@ -371,7 +355,7 @@ function EditorArea(props: EditorAreaProps) {
         <>
           <div
             key={props.editorFlashKey}
-            className={`flex-1 overflow-hidden relative ${props.editorFlashKey > 0 ? 'animate-flash' : ''}`}
+            className={`flex-1 min-h-0 overflow-hidden relative ${props.editorFlashKey > 0 ? 'animate-flash' : ''}`}
           >
             <Editor value={props.code} onChange={props.onCodeChange} onCursorChange={props.onCursorChange} />
           </div>
@@ -395,7 +379,7 @@ function EditorArea(props: EditorAreaProps) {
 
       {props.activeTab === 'preview' && props.previewOpen && (
         <>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden">
             {props.previewCode ? (
               <Preview code={props.previewCode} onStatus={props.onPreviewStatus} />
             ) : (
