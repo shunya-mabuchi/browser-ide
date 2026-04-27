@@ -7,29 +7,40 @@ export function Console() {
     <div className="flex flex-col h-full" style={{ background: 'var(--surface2)', borderTop: '1px solid var(--border)' }}>
       <div
         className="px-4 flex items-center justify-between shrink-0"
-        style={{ height: '28px', borderBottom: '1px solid var(--border)' }}
+        style={{ height: '28px', borderBottom: collapsed ? 'none' : '1px solid var(--border)' }}
       >
         <button
           onClick={() => setCollapsed((v) => !v)}
+          className="press"
           style={{
             background: 'transparent',
             border: 'none',
-            color: 'var(--text-dim)',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             fontSize: 12,
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            gap: 6,
+            padding: '2px 4px',
           }}
         >
-          <span style={{ display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 150ms' }}>▼</span>
-          <span style={{ letterSpacing: '0.06em' }}>CONSOLE</span>
+          <span style={{
+            display: 'inline-block',
+            transform: collapsed ? 'rotate(-90deg)' : 'none',
+            transition: 'transform 150ms',
+            color: 'var(--amber)',
+          }}>▼</span>
+          <span style={{ letterSpacing: '0.1em', fontWeight: 500 }}>CONSOLE</span>
         </button>
       </div>
       {!collapsed && (
-        <div className="flex-1 overflow-auto p-3 tabular text-xs" style={{ color: 'var(--text-dim)' }}>
-          <p style={{ opacity: 0.5 }}>
-            （プレビュー実行時のログがここに表示されます。Week 3 で連携実装予定。）
+        <div className="flex-1 overflow-auto p-3 tabular text-xs">
+          <p style={{ color: 'var(--text-muted)' }}>
+            <span style={{ color: 'var(--amber-mute)' }}>$</span>{' '}
+            プレビュー実行時のログがここに表示されます
+          </p>
+          <p style={{ color: 'var(--text-dim)', marginTop: 4 }}>
+            （Week 3 で連携実装予定）
           </p>
         </div>
       )}

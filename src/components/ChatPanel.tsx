@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { CornerDownLeft, Square } from 'lucide-react'
 import type { ModelState } from '../hooks/useLlmModel'
 
@@ -92,6 +93,36 @@ function HeaderBar({
   onUnloadModel: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuPos(null)
+      return
+    }
+    const btn = buttonRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    setMenuPos({
+      top: rect.bottom + 4,
+      right: window.innerWidth - rect.right,
+    })
+
+    const onDocClick = (e: MouseEvent) => {
+      if (!btn.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [menuOpen])
+
   return (
     <div
       className="px-4 py-2.5 flex items-center gap-2 shrink-0"
@@ -110,43 +141,57 @@ function HeaderBar({
         </span>
       )}
       {modelState.kind === 'ready' && (
-        <div className="ml-auto" style={{ position: 'relative' }}>
+        <button
+          ref={buttonRef}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="press text-sm ml-auto"
+          style={{
+            background: menuOpen ? 'var(--amber-glow)' : 'transparent',
+            border: '1px solid var(--border2)',
+            color: menuOpen ? 'var(--amber)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: '2px 10px',
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+          }}
+          aria-label="モデル操作メニュー"
+        >
+          ⋯
+        </button>
+      )}
+      {menuOpen && menuPos && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: menuPos.top,
+            right: menuPos.right,
+            background: 'var(--surface2)',
+            border: '1px solid var(--border2)',
+            borderRadius: 4,
+            minWidth: 200,
+            zIndex: 1000,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+            overflow: 'hidden',
+          }}
+        >
           <button
-            onClick={() => setMenuOpen((v) => !v)}
-            className="press text-sm"
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '2px 6px' }}
+            onClick={() => { setMenuOpen(false); onSwitchModel() }}
+            style={menuItemStyle}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--amber-glow)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
-            ⋯
+            モデル切替
           </button>
-          {menuOpen && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 26,
-                right: 0,
-                background: 'var(--surface2)',
-                border: '1px solid var(--border)',
-                borderRadius: 4,
-                minWidth: 180,
-                zIndex: 10,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-              }}
-            >
-              <button
-                onClick={() => { setMenuOpen(false); onSwitchModel() }}
-                style={menuItemStyle}
-              >
-                モデル切替
-              </button>
-              <button
-                onClick={() => { setMenuOpen(false); onUnloadModel() }}
-                style={menuItemStyle}
-              >
-                モデルをアンロード
-              </button>
-            </div>
-          )}
-        </div>
+          <button
+            onClick={() => { setMenuOpen(false); onUnloadModel() }}
+            style={menuItemStyle}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--amber-glow)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            モデルをアンロード
+          </button>
+        </div>,
+        document.body,
       )}
     </div>
   )

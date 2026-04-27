@@ -76,12 +76,13 @@ function AppInner() {
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const lastLoadOptsRef = useRef<{ modelId: string; modelName?: string } | null>(null)
 
-  // Migrate old localStorage keys (one-time)
+  // Migrate old localStorage keys (one-time, v2 = fresh splitter defaults after layout rework)
   useEffect(() => {
-    if (localStorage.getItem('bide.migrated.v1')) return
-    localStorage.removeItem('bide.split.h')
-    localStorage.removeItem('bide.split.v')
-    localStorage.setItem('bide.migrated.v1', 'true')
+    if (localStorage.getItem('bide.migrated.v2')) return
+    for (const k of ['bide.split.h', 'bide.split.v', 'bide.split.tree', 'bide.split.chat', 'bide.split.console']) {
+      localStorage.removeItem(k)
+    }
+    localStorage.setItem('bide.migrated.v2', 'true')
   }, [])
 
   // Auto-preview (1.5s debounce)
@@ -195,84 +196,101 @@ function AppInner() {
       <Header llmState={llm.state} statusLabel={statusInfo.label} statusDot={statusInfo.dot} />
 
       <div className="flex flex-1 overflow-hidden">
-        <Splitter storageKey="bide.split.tree" defaultPercent={18} min={10} max={40} orientation="vertical">
+        <Splitter storageKey="bide.split.tree" defaultPercent={15} min={10} max={32} orientation="vertical">
           <FileTreePlaceholder />
 
-          <Splitter storageKey="bide.split.chat" defaultPercent={74} min={55} max={88} orientation="vertical">
-            <Splitter storageKey="bide.split.console" defaultPercent={78} min={40} max={100} orientation="horizontal">
-              <div className="flex flex-col min-w-0 w-full">
-                <div
-                  className="flex items-center justify-between px-4 shrink-0"
-                  style={{ height: '34px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                >
-                  <span className="text-sm tabular" style={{ color: 'var(--text-dim)' }}>main.tsx</span>
-                  <button
-                    onClick={() => setPreviewCode(code)}
-                    className="press flex items-center gap-1.5 px-2.5 text-xs font-medium"
-                    style={{ height: '22px', color: 'var(--bg)', background: 'var(--green)' }}
-                    title="⌘Enter で即時実行"
+          <Splitter storageKey="bide.split.chat" defaultPercent={70} min={50} max={85} orientation="vertical">
+            {/* Center area: editor+preview on top, console at bottom */}
+            <Splitter storageKey="bide.split.console" defaultPercent={75} min={40} max={100} orientation="horizontal">
+              {/* Top: editor | preview side-by-side */}
+              <Splitter storageKey="bide.split.preview" defaultPercent={55} min={30} max={80} orientation="vertical">
+                {/* Editor */}
+                <div className="flex flex-col min-w-0 w-full h-full">
+                  <div
+                    className="flex items-center justify-between px-4 shrink-0"
+                    style={{ height: '34px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
                   >
-                    <Play size={10} />
-                    実行
-                  </button>
-                </div>
-                <div
-                  key={editorFlashKey}
-                  className={`flex-1 overflow-hidden relative ${editorFlashKey > 0 ? 'animate-flash' : ''}`}
-                  style={{ minHeight: '40%' }}
-                >
-                  <Editor value={code} onChange={setCode} onCursorChange={handleCursorChange} />
-                </div>
-                <div
-                  className="flex items-center gap-4 px-4 shrink-0 tabular"
-                  style={{ height: '22px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}
-                >
-                  <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
-                    {cursor.line.toString().padStart(2, '0')}:{cursor.col.toString().padStart(2, '0')}
-                  </span>
-                  <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
-                    {lineCount}行 · {charCount}字
-                  </span>
-                  <span className="text-xs" style={{ color: 'var(--text-dim)' }}>TSX</span>
-                  <span
-                    className="text-xs flex items-center gap-1.5 truncate"
-                    style={{
-                      color:
-                        previewStatus.kind === 'error'
-                          ? 'var(--red)'
-                          : previewStatus.kind === 'compiling'
-                          ? 'var(--amber)'
-                          : 'var(--text-dim)',
-                      maxWidth: '40%',
-                    }}
-                    title={previewStatus.kind === 'error' ? previewStatus.message : undefined}
+                    <span className="text-sm tabular font-medium" style={{ color: 'var(--text)' }}>main.tsx</span>
+                    <button
+                      onClick={() => setPreviewCode(code)}
+                      className="press flex items-center gap-1.5 px-3 text-xs font-medium"
+                      style={{ height: '22px', color: 'var(--bg)', background: 'var(--green)', boxShadow: '0 0 8px var(--green-dim)' }}
+                      title="⌘Enter で即時実行"
+                    >
+                      <Play size={10} />
+                      実行
+                    </button>
+                  </div>
+                  <div
+                    key={editorFlashKey}
+                    className={`flex-1 overflow-hidden relative ${editorFlashKey > 0 ? 'animate-flash' : ''}`}
                   >
-                    <span
-                      className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ background: statusInfo.dot }}
-                    />
-                    <span className="truncate">{statusInfo.detail}</span>
-                  </span>
-                  <span className="text-xs ml-auto" style={{ color: 'var(--text-dim)' }}>
-                    ⌘Enter 実行 · ⌘K チャット
-                  </span>
+                    <Editor value={code} onChange={setCode} onCursorChange={handleCursorChange} />
+                  </div>
+                  <div
+                    className="flex items-center gap-4 px-4 shrink-0 tabular"
+                    style={{ height: '22px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}
+                  >
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {cursor.line.toString().padStart(2, '0')}:{cursor.col.toString().padStart(2, '0')}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {lineCount}行 · {charCount}字
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>TSX</span>
+                    <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
+                      ⌘Enter 実行 · ⌘K チャット
+                    </span>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-hidden" style={{ borderTop: '1px solid var(--border)' }}>
-                  {previewCode ? (
-                    <Preview code={previewCode} onStatus={setPreviewStatus} />
-                  ) : (
-                    <div className="h-full flex items-center justify-center" style={{ background: 'var(--surface)' }}>
-                      <span className="text-sm" style={{ color: 'var(--text-dim)' }}>
-                        「<span style={{ color: 'var(--green)' }}>実行</span>」またはコード編集で表示
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
 
+                {/* Preview */}
+                <div className="flex flex-col min-w-0 w-full h-full">
+                  <div
+                    className="flex items-center justify-between px-4 shrink-0"
+                    style={{ height: '34px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
+                  >
+                    <span className="text-sm font-medium" style={{ color: 'var(--text)', letterSpacing: '0.04em' }}>
+                      🌐 Preview
+                    </span>
+                    <span
+                      className="text-xs flex items-center gap-1.5"
+                      style={{
+                        color:
+                          previewStatus.kind === 'error'
+                            ? 'var(--red)'
+                            : previewStatus.kind === 'compiling'
+                            ? 'var(--amber)'
+                            : 'var(--text-muted)',
+                      }}
+                      title={previewStatus.kind === 'error' ? previewStatus.message : undefined}
+                    >
+                      <span
+                        className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: statusInfo.dot, boxShadow: `0 0 4px ${statusInfo.dot}` }}
+                      />
+                      <span className="tabular">{statusInfo.detail}</span>
+                    </span>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    {previewCode ? (
+                      <Preview code={previewCode} onStatus={setPreviewStatus} />
+                    ) : (
+                      <div className="h-full flex items-center justify-center" style={{ background: 'var(--surface)' }}>
+                        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                          「<span style={{ color: 'var(--green)' }}>実行</span>」またはコード編集で表示
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Splitter>
+
+              {/* Bottom: Console */}
               <Console />
             </Splitter>
 
+            {/* Right: Chat */}
             <ChatPanel
               messages={messages}
               isGenerating={isGenerating}
