@@ -1,4 +1,5 @@
 import { X, FileCode2, Globe, Play } from 'lucide-react'
+import { key } from '../lib/platform'
 
 export type TabKind = 'main' | 'preview'
 
@@ -45,7 +46,7 @@ export function EditorTabs({ active, previewOpen, onSelect, onClosePreview, onRu
           boxShadow: '0 0 8px var(--green-dim)',
           borderRadius: 2,
         }}
-        title="⌘Enter で即時実行"
+        title={`${key('Mod', 'Enter')} で即時実行`}
       >
         <Play size={10} />
         実行

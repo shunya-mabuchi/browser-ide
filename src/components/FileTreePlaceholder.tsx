@@ -1,4 +1,5 @@
 import { FileCode2, FolderClosed, Lock } from 'lucide-react'
+import { key } from '../lib/platform'
 
 type Props = {
   onClose: () => void
@@ -29,7 +30,7 @@ export function FileTreePlaceholder({ onClose }: Props) {
             lineHeight: 1,
             padding: '0 4px',
           }}
-          title="閉じる (⌘B)"
+          title={`閉じる (${key('Mod', 'B')})`}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)' }}
         >

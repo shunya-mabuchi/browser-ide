@@ -11,6 +11,7 @@ import { EditorTabs, type TabKind } from './components/EditorTabs'
 import { ResizableHandle } from './components/ResizableHandle'
 import { ToastProvider, useToast } from './components/Toast'
 import { useLlmModel, type ModelState } from './hooks/useLlmModel'
+import { key } from './lib/platform'
 import './index.css'
 
 const DEFAULT_CODE = `function App() {
@@ -413,7 +414,7 @@ function EditorArea(props: EditorAreaProps) {
             </span>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>TSX</span>
             <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
-              ⌘B Explorer · ⌘J Console · ⌘\ Chat
+              {key('Mod', 'B')} Explorer · {key('Mod', 'J')} Console · {key('Mod', '\\')} Chat
             </span>
           </div>
         </>
@@ -442,7 +443,7 @@ function EditorArea(props: EditorAreaProps) {
             />
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{props.statusInfo.detail}</span>
             <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
-              ⌘Enter で再実行
+              {key('Mod', 'Enter')} で再実行
             </span>
           </div>
         </>

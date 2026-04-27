@@ -1,3 +1,5 @@
+import { key } from '../lib/platform'
+
 type Props = {
   onClose: () => void
 }
@@ -28,7 +30,7 @@ export function Console({ onClose }: Props) {
             lineHeight: 1,
             padding: '0 6px',
           }}
-          title="閉じる (⌘J)"
+          title={`閉じる (${key('Mod', 'J')})`}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)' }}
         >

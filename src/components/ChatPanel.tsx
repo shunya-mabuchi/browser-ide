@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { CornerDownLeft, Square } from 'lucide-react'
 import type { ModelState } from '../hooks/useLlmModel'
+import { key } from '../lib/platform'
 
 export interface Message {
   role: 'user' | 'assistant'
@@ -402,7 +403,7 @@ function ReadyView({
               ))}
             </div>
             <span className="text-xs mt-2" style={{ color: 'var(--text-dim)' }}>
-              ⌘K で入力にフォーカス
+              {key('Mod', 'K')} で入力にフォーカス
             </span>
           </div>
         )}

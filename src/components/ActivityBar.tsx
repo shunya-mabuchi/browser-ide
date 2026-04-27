@@ -1,4 +1,5 @@
 import { Files, MessageSquare, Terminal } from 'lucide-react'
+import { key } from '../lib/platform'
 
 type Props = {
   showExplorer: boolean
@@ -24,14 +25,14 @@ export function ActivityBar(props: Props) {
         flexShrink: 0,
       }}
     >
-      <ActivityIcon label="Explorer (⌘B)" active={props.showExplorer} onClick={props.onToggleExplorer}>
+      <ActivityIcon label={`Explorer (${key('Mod', 'B')})`} active={props.showExplorer} onClick={props.onToggleExplorer}>
         <Files size={20} />
       </ActivityIcon>
-      <ActivityIcon label="Chat (⌘\\)" active={props.showChat} onClick={props.onToggleChat}>
+      <ActivityIcon label={`Chat (${key('Mod', '\\')})`} active={props.showChat} onClick={props.onToggleChat}>
         <MessageSquare size={20} />
       </ActivityIcon>
       <div style={{ flex: 1 }} />
-      <ActivityIcon label="Console (⌘J)" active={props.showConsole} onClick={props.onToggleConsole}>
+      <ActivityIcon label={`Console (${key('Mod', 'J')})`} active={props.showConsole} onClick={props.onToggleConsole}>
         <Terminal size={18} />
       </ActivityIcon>
     </div>
