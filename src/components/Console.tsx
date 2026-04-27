@@ -4,7 +4,7 @@ type Props = {
 
 export function Console({ onClose }: Props) {
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--surface2)', borderTop: '1px solid var(--border)' }}>
+    <div className="flex flex-col h-full w-full min-w-0" style={{ background: 'var(--surface2)', borderTop: '1px solid var(--border)' }}>
       <div
         className="px-4 flex items-center justify-between shrink-0"
         style={{ height: '28px', borderBottom: '1px solid var(--border)' }}

@@ -453,7 +453,7 @@ function ReadyView({
 export function ChatPanel(props: Props) {
   const { modelState } = props
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--surface)' }}>
+    <div className="flex flex-col h-full w-full min-w-0" style={{ background: 'var(--surface)' }}>
       <HeaderBar
         modelState={modelState}
         isGenerating={props.isGenerating}

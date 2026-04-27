@@ -6,7 +6,7 @@ type Props = {
 
 export function FileTreePlaceholder({ onClose }: Props) {
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--surface2)', borderRight: '1px solid var(--border)' }}>
+    <div className="flex flex-col h-full w-full min-w-0" style={{ background: 'var(--surface2)', borderRight: '1px solid var(--border)' }}>
       <div
         className="px-3 flex items-center justify-between shrink-0"
         style={{ height: '34px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}
