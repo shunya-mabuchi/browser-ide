@@ -13,6 +13,8 @@ interface Props {
   isLoading: boolean
   loadProgress: number
   loadText: string
+  isModal?: boolean
+  onCancel?: () => void
 }
 
 const TIER_LABEL: Record<ModelSizeTier, string> = {
@@ -33,7 +35,14 @@ const AXIS_COLOR: Record<ModelAxis, string> = {
   reasoning: 'var(--amber)',
 }
 
-export function ModelSelector({ onSelect, isLoading, loadProgress, loadText }: Props) {
+export function ModelSelector({
+  onSelect,
+  isLoading,
+  loadProgress,
+  loadText,
+  isModal = false,
+  onCancel,
+}: Props) {
   const [hw, setHw] = useState<HardwareInfo | null>(null)
   const [models, setModels] = useState<ModelOption[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -56,46 +65,51 @@ export function ModelSelector({ onSelect, isLoading, loadProgress, loadText }: P
     return groups
   }, [models])
 
+  const rootClass = isModal
+    ? 'animate-screen-in flex flex-col w-full'
+    : 'animate-screen-in flex flex-col items-center justify-center min-h-screen w-full'
+  const rootStyle = isModal
+    ? { background: 'var(--surface)' }
+    : { background: 'var(--bg)' }
+
   return (
-    <div
-      className="animate-screen-in flex flex-col items-center justify-center min-h-screen w-full"
-      style={{ background: 'var(--bg)' }}
-    >
-      {/* Logo */}
-      <div className="mb-12 text-center">
-        <div className="flex items-center gap-4 mb-3 justify-center">
-          <div className="w-10 h-10 grid grid-cols-2 gap-1">
-            {[...Array(4)].map((_, i) => {
-              const lit = i === 1 || i === 2
-              return (
-                <div
-                  key={i}
-                  className="rounded"
-                  style={{
-                    background: lit ? 'var(--amber)' : 'var(--border2)',
-                    boxShadow: lit ? '0 0 8px var(--amber-glow)' : 'none',
-                  }}
-                />
-              )
-            })}
+    <div className={rootClass} style={rootStyle}>
+      {!isModal && (
+        <div className="mb-12 text-center">
+          <div className="flex items-center gap-4 mb-3 justify-center">
+            <div className="w-10 h-10 grid grid-cols-2 gap-1">
+              {[...Array(4)].map((_, i) => {
+                const lit = i === 1 || i === 2
+                return (
+                  <div
+                    key={i}
+                    className="rounded"
+                    style={{
+                      background: lit ? 'var(--amber)' : 'var(--border2)',
+                      boxShadow: lit ? '0 0 8px var(--amber-glow)' : 'none',
+                    }}
+                  />
+                )
+              })}
+            </div>
+            <span
+              className="text-3xl font-medium"
+              style={{ color: 'var(--text)', letterSpacing: '0.2em' }}
+            >
+              BROWSER<span style={{ color: 'var(--amber-strong)' }}>IDE</span>
+            </span>
           </div>
-          <span
-            className="text-3xl font-medium"
-            style={{ color: 'var(--text)', letterSpacing: '0.2em' }}
-          >
-            BROWSER<span style={{ color: 'var(--amber-strong)' }}>IDE</span>
-          </span>
+          <p className="text-base" style={{ color: 'var(--text-muted)' }}>
+            ブラウザだけで動く、プライベートなAI搭載IDE
+          </p>
         </div>
-        <p className="text-base" style={{ color: 'var(--text-muted)' }}>
-          ブラウザだけで動く、プライベートなAI搭載IDE
-        </p>
-      </div>
+      )}
 
       {/* Panel */}
       <div
-        className="w-full bezel"
+        className={isModal ? 'w-full flex flex-col flex-1 min-h-0' : 'w-full bezel'}
         style={{
-          maxWidth: '560px',
+          maxWidth: isModal ? undefined : '560px',
           background: 'var(--surface)',
         }}
       >
@@ -106,24 +120,39 @@ export function ModelSelector({ onSelect, isLoading, loadProgress, loadText }: P
           <span className="text-base" style={{ color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
             AIモデルを選択
           </span>
-          {hw && (
-            <span
-              className="text-sm tabular flex items-center gap-2"
-              style={{ color: hw.hasWebGPU ? 'var(--green)' : 'var(--amber-mute)' }}
-            >
+          <div className="flex items-center gap-3">
+            {hw && (
               <span
-                className="inline-block w-2 h-2 rounded-full"
+                className="text-sm tabular flex items-center gap-2"
+                style={{ color: hw.hasWebGPU ? 'var(--green)' : 'var(--amber-mute)' }}
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{
+                    background: hw.hasWebGPU ? 'var(--green)' : 'var(--amber)',
+                    boxShadow: hw.hasWebGPU ? '0 0 6px var(--green)' : '0 0 6px var(--amber-glow)',
+                  }}
+                />
+                {hw.hasWebGPU ? 'GPU 使用可能' : 'CPU 動作'}
+              </span>
+            )}
+            {isModal && onCancel && (
+              <button
+                onClick={onCancel}
+                className="press text-xs px-2 py-1"
                 style={{
-                  background: hw.hasWebGPU ? 'var(--green)' : 'var(--amber)',
-                  boxShadow: hw.hasWebGPU ? '0 0 6px var(--green)' : '0 0 6px var(--amber-glow)',
+                  color: 'var(--text-dim)',
+                  border: '1px solid var(--border2)',
+                  background: 'transparent',
                 }}
-              />
-              {hw.hasWebGPU ? 'GPU 使用可能' : 'CPU 動作'}
-            </span>
-          )}
+              >
+                キャンセル
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="p-2 overflow-y-auto" style={{ maxHeight: '52vh' }}>
+        <div className="p-2 overflow-y-auto" style={{ maxHeight: isModal ? '60vh' : '52vh' }}>
           {!hw ? (
             <div className="py-10 text-center text-base tabular" style={{ color: 'var(--text-dim)' }}>
               ハードウェアを検出中<span className="cursor-blink">_</span>
@@ -297,11 +326,13 @@ export function ModelSelector({ onSelect, isLoading, loadProgress, loadText }: P
         </div>
       </div>
 
-      <div className="mt-6 text-xs tabular" style={{ color: 'var(--text-dim)' }}>
-        {selectedIndex >= 0 && models[selectedIndex] && (
-          <>初回のみ {models[selectedIndex].sizeLabel} のダウンロードが発生します</>
-        )}
-      </div>
+      {!isModal && (
+        <div className="mt-6 text-xs tabular" style={{ color: 'var(--text-dim)' }}>
+          {selectedIndex >= 0 && models[selectedIndex] && (
+            <>初回のみ {models[selectedIndex].sizeLabel} のダウンロードが発生します</>
+          )}
+        </div>
+      )}
     </div>
   )
 }
