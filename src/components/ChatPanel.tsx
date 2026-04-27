@@ -444,6 +444,17 @@ function ReadyView({
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handleSubmit()
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                if (isGenerating) {
+                  onAbort()
+                } else if (input.length > 0) {
+                  setInput('')
+                } else {
+                  ;(e.currentTarget as HTMLTextAreaElement).blur()
+                }
               }
             }}
             placeholder="メッセージを入力..."
