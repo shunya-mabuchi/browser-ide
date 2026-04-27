@@ -31,6 +31,8 @@ const SAMPLE_PROMPTS = [
   'ボタンの色を青に変えて',
 ]
 
+const MAX_INPUT_LINES = 10
+
 function extractCodeBlock(text: string): string | null {
   const match = text.match(/```(?:\w+)?\n([\s\S]+?)```/)
   return match ? match[1].trim() : null
@@ -369,6 +371,21 @@ function ReadyView({
     if (!stickToBottomRef.current) return
     el.scrollTop = el.scrollHeight
   }, [messages])
+
+  // Auto-grow textarea up to MAX_INPUT_LINES, then scroll
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const styles = getComputedStyle(el)
+    const lineHeight = parseFloat(styles.lineHeight) || 22
+    const paddingY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom)
+    const minHeight = lineHeight * 2 + paddingY
+    const maxHeight = lineHeight * MAX_INPUT_LINES + paddingY
+    const next = Math.max(minHeight, Math.min(el.scrollHeight, maxHeight))
+    el.style.height = `${next}px`
+    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [input, textareaRef])
 
   const handleSubmit = (text?: string) => {
     const value = (text ?? input).trim()
