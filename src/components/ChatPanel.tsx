@@ -115,10 +115,10 @@ function HeaderBar({
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMenuOpen(false)
     }
-    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('click', onDocClick)
     document.addEventListener('keydown', onEsc)
     return () => {
-      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('click', onDocClick)
       document.removeEventListener('keydown', onEsc)
     }
   }, [menuOpen])
@@ -421,6 +421,8 @@ function ReadyView({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
+              // IME 変換中の Enter は無視（日本語入力の確定で送信されないように）
+              if (e.nativeEvent.isComposing) return
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 handleSubmit()

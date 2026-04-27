@@ -8,6 +8,7 @@ import { Console } from './components/Console'
 import { FileTreePlaceholder } from './components/FileTreePlaceholder'
 import { ActivityBar } from './components/ActivityBar'
 import { EditorTabs, type TabKind } from './components/EditorTabs'
+import { ResizableHandle } from './components/ResizableHandle'
 import { ToastProvider, useToast } from './components/Toast'
 import { useLlmModel, type ModelState } from './hooks/useLlmModel'
 import './index.css'
@@ -53,6 +54,26 @@ function writeBoolPref(key: string, value: boolean): void {
   localStorage.setItem(key, value ? 'true' : 'false')
 }
 
+function readNumPref(key: string, defaultValue: number): number {
+  const v = localStorage.getItem(key)
+  if (v === null) return defaultValue
+  const n = parseFloat(v)
+  return Number.isFinite(n) ? n : defaultValue
+}
+
+function writeNumPref(key: string, value: number): void {
+  localStorage.setItem(key, String(value))
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n))
+}
+
+const EXPLORER_MIN = 180
+const EXPLORER_MAX = 480
+const CHAT_MIN = 280
+const CHAT_MAX = 640
+
 export default function App() {
   return (
     <ToastProvider>
@@ -80,6 +101,8 @@ function AppInner() {
   const [showExplorer, setShowExplorer] = useState(() => readBoolPref('bide.show.explorer', true))
   const [showChat, setShowChat] = useState(() => readBoolPref('bide.show.chat', true))
   const [showConsole, setShowConsole] = useState(() => readBoolPref('bide.show.console', false))
+  const [explorerWidth, setExplorerWidth] = useState(() => readNumPref('bide.width.explorer', 240))
+  const [chatWidth, setChatWidth] = useState(() => readNumPref('bide.width.chat', 380))
 
   // Editor tabs — main.tsx + Preview
   const [activeTab, setActiveTab] = useState<TabKind>('main')
@@ -107,6 +130,8 @@ function AppInner() {
   useEffect(() => writeBoolPref('bide.show.explorer', showExplorer), [showExplorer])
   useEffect(() => writeBoolPref('bide.show.chat', showChat), [showChat])
   useEffect(() => writeBoolPref('bide.show.console', showConsole), [showConsole])
+  useEffect(() => writeNumPref('bide.width.explorer', explorerWidth), [explorerWidth])
+  useEffect(() => writeNumPref('bide.width.chat', chatWidth), [chatWidth])
 
   // Auto-preview (1.5s debounce)
   useEffect(() => {
@@ -265,35 +290,6 @@ function AppInner() {
     </Splitter>
   ) : editorArea
 
-  // Compose center + chat (right pane)
-  const centerWithChat = showChat ? (
-    <Splitter storageKey="bide.split.v4.chat" defaultPercent={70} min={45} max={85} orientation="vertical">
-      {centerArea}
-      <ChatPanel
-        messages={messages}
-        isGenerating={isGenerating}
-        onSend={sendMessage}
-        onAbort={abortGeneration}
-        onApplyCode={applyCode}
-        inputRef={chatInputRef}
-        modelState={llm.state}
-        onPickModel={() => setPickerOpen(true)}
-        onSwitchModel={() => setPickerOpen(true)}
-        onUnloadModel={llm.unloadModel}
-        onCancelLoad={llm.cancelLoad}
-        onRetryLoad={retryLoad}
-      />
-    </Splitter>
-  ) : centerArea
-
-  // Compose explorer + (center + chat)
-  const mainArea = showExplorer ? (
-    <Splitter storageKey="bide.split.v4.tree" defaultPercent={18} min={10} max={32} orientation="vertical">
-      <FileTreePlaceholder onClose={() => setShowExplorer(false)} />
-      {centerWithChat}
-    </Splitter>
-  ) : centerWithChat
-
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg)' }}>
       <Header llmState={llm.state} statusLabel={statusInfo.label} statusDot={statusInfo.dot} />
@@ -307,7 +303,53 @@ function AppInner() {
           onToggleChat={() => setShowChat((v) => !v)}
           onToggleConsole={() => setShowConsole((v) => !v)}
         />
-        {mainArea}
+
+        {showExplorer && (
+          <>
+            <div
+              className="overflow-hidden flex shrink-0"
+              style={{ width: explorerWidth, minWidth: 0 }}
+            >
+              <FileTreePlaceholder onClose={() => setShowExplorer(false)} />
+            </div>
+            <ResizableHandle
+              orientation="vertical"
+              onResize={(dx) => setExplorerWidth((w) => clamp(w + dx, EXPLORER_MIN, EXPLORER_MAX))}
+            />
+          </>
+        )}
+
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          {centerArea}
+        </div>
+
+        {showChat && (
+          <>
+            <ResizableHandle
+              orientation="vertical"
+              onResize={(dx) => setChatWidth((w) => clamp(w - dx, CHAT_MIN, CHAT_MAX))}
+            />
+            <div
+              className="overflow-hidden flex shrink-0"
+              style={{ width: chatWidth, minWidth: 0 }}
+            >
+              <ChatPanel
+                messages={messages}
+                isGenerating={isGenerating}
+                onSend={sendMessage}
+                onAbort={abortGeneration}
+                onApplyCode={applyCode}
+                inputRef={chatInputRef}
+                modelState={llm.state}
+                onPickModel={() => setPickerOpen(true)}
+                onSwitchModel={() => setPickerOpen(true)}
+                onUnloadModel={llm.unloadModel}
+                onCancelLoad={llm.cancelLoad}
+                onRetryLoad={retryLoad}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <ModelPicker
