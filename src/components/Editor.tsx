@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { EditorView } from '@codemirror/view'
+import { EditorView, keymap } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
+import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { basicSetup } from 'codemirror'
 import { javascript } from '@codemirror/lang-javascript'
 import { editorExtensions } from '../lib/editorTheme'
@@ -28,6 +29,8 @@ export function Editor({ value, onChange, onCursorChange }: Props) {
         doc: value,
         extensions: [
           basicSetup,
+          history(),
+          keymap.of([...historyKeymap, ...defaultKeymap, indentWithTab]),
           javascript({ jsx: true, typescript: true }),
           ...editorExtensions,
           EditorView.updateListener.of((update) => {
