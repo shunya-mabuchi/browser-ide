@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { Play } from 'lucide-react'
 import { Editor } from './components/Editor'
 import { Preview, type PreviewStatus } from './components/Preview'
 import { ChatPanel, type Message } from './components/ChatPanel'
@@ -7,6 +6,8 @@ import { ModelPicker } from './components/ModelPicker'
 import { Splitter } from './components/Splitter'
 import { Console } from './components/Console'
 import { FileTreePlaceholder } from './components/FileTreePlaceholder'
+import { ActivityBar } from './components/ActivityBar'
+import { EditorTabs, type TabKind } from './components/EditorTabs'
 import { ToastProvider, useToast } from './components/Toast'
 import { useLlmModel, type ModelState } from './hooks/useLlmModel'
 import './index.css'
@@ -42,12 +43,14 @@ const DEFAULT_CODE = `function App() {
 }
 `
 
-function formatTime(ts: number) {
-  const d = new Date(ts)
-  const hh = d.getHours().toString().padStart(2, '0')
-  const mm = d.getMinutes().toString().padStart(2, '0')
-  const ss = d.getSeconds().toString().padStart(2, '0')
-  return `${hh}:${mm}:${ss}`
+function readBoolPref(key: string, defaultValue: boolean): boolean {
+  const v = localStorage.getItem(key)
+  if (v === null) return defaultValue
+  return v === 'true'
+}
+
+function writeBoolPref(key: string, value: boolean): void {
+  localStorage.setItem(key, value ? 'true' : 'false')
 }
 
 export default function App() {
@@ -73,38 +76,40 @@ function AppInner() {
   const [editorFlashKey, setEditorFlashKey] = useState(0)
   const [pickerOpen, setPickerOpen] = useState(false)
 
+  // Layout state — VS Code-like panel toggles
+  const [showExplorer, setShowExplorer] = useState(() => readBoolPref('bide.show.explorer', true))
+  const [showChat, setShowChat] = useState(() => readBoolPref('bide.show.chat', true))
+  const [showConsole, setShowConsole] = useState(() => readBoolPref('bide.show.console', false))
+
+  // Editor tabs — main.tsx + Preview
+  const [activeTab, setActiveTab] = useState<TabKind>('main')
+  const [previewOpen, setPreviewOpen] = useState(true)
+
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const lastLoadOptsRef = useRef<{ modelId: string; modelName?: string } | null>(null)
 
-  // Migrate old localStorage keys (one-time, v2 = fresh splitter defaults after layout rework)
+  // Migrate old localStorage keys (one-time, v3 = activity bar/tabs era)
   useEffect(() => {
-    if (localStorage.getItem('bide.migrated.v2')) return
-    for (const k of ['bide.split.h', 'bide.split.v', 'bide.split.tree', 'bide.split.chat', 'bide.split.console']) {
+    if (localStorage.getItem('bide.migrated.v3')) return
+    for (const k of [
+      'bide.split.h', 'bide.split.v',
+      'bide.split.tree', 'bide.split.chat', 'bide.split.console', 'bide.split.preview',
+      'bide.migrated.v1', 'bide.migrated.v2',
+    ]) {
       localStorage.removeItem(k)
     }
-    localStorage.setItem('bide.migrated.v2', 'true')
+    localStorage.setItem('bide.migrated.v3', 'true')
   }, [])
+
+  // Persist panel toggles
+  useEffect(() => writeBoolPref('bide.show.explorer', showExplorer), [showExplorer])
+  useEffect(() => writeBoolPref('bide.show.chat', showChat), [showChat])
+  useEffect(() => writeBoolPref('bide.show.console', showConsole), [showConsole])
 
   // Auto-preview (1.5s debounce)
   useEffect(() => {
     const timer = setTimeout(() => setPreviewCode(code), 1500)
     return () => clearTimeout(timer)
-  }, [code])
-
-  // Global shortcuts: ⌘Enter run, ⌘K focus chat
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey
-      if (mod && e.key === 'Enter') {
-        e.preventDefault()
-        setPreviewCode(code)
-      } else if (mod && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault()
-        chatInputRef.current?.focus()
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
   }, [code])
 
   // Track last load options for retry
@@ -116,6 +121,38 @@ function AppInner() {
       }
     }
   }, [llm.state])
+
+  const runPreview = useCallback(() => {
+    setPreviewCode(code)
+    setPreviewOpen(true)
+    setActiveTab('preview')
+  }, [code])
+
+  // Global shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key === 'Enter') {
+        e.preventDefault()
+        runPreview()
+      } else if (mod && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        if (!showChat) setShowChat(true)
+        chatInputRef.current?.focus()
+      } else if (mod && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault()
+        setShowExplorer((v) => !v)
+      } else if (mod && (e.key === 'j' || e.key === 'J')) {
+        e.preventDefault()
+        setShowConsole((v) => !v)
+      } else if (mod && e.key === '\\') {
+        e.preventDefault()
+        setShowChat((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [runPreview, showChat])
 
   const sendMessage = useCallback((text: string) => {
     const userMsg: Message = { role: 'user', content: text }
@@ -159,6 +196,7 @@ function AppInner() {
     setCode(newCode)
     setPreviewCode(newCode)
     setEditorFlashKey((n) => n + 1)
+    setActiveTab('main')
   }, [])
 
   const handleCursorChange = useCallback((line: number, col: number) => {
@@ -175,138 +213,117 @@ function AppInner() {
     if (opts) llm.loadModel(opts)
   }, [llm])
 
+  const handleSelectTab = useCallback((tab: TabKind) => {
+    if (tab === 'preview' && !previewOpen) setPreviewOpen(true)
+    setActiveTab(tab)
+  }, [previewOpen])
+
+  const closePreviewTab = useCallback(() => {
+    setPreviewOpen(false)
+    setActiveTab('main')
+  }, [])
+
   const statusInfo = useMemo(() => {
     switch (previewStatus.kind) {
-      case 'compiling':
-        return { dot: 'var(--amber)', label: 'compile', detail: 'コンパイル中' }
-      case 'ok':
-        return { dot: 'var(--green)', label: 'ok', detail: formatTime(previewStatus.ranAt) }
-      case 'error':
-        return { dot: 'var(--red)', label: 'error', detail: previewStatus.message }
-      default:
-        return { dot: 'var(--text-dim)', label: 'idle', detail: '待機中' }
+      case 'compiling': return { dot: 'var(--amber)', label: 'compile', detail: 'コンパイル中' }
+      case 'ok': return { dot: 'var(--green)', label: 'ok', detail: 'OK' }
+      case 'error': return { dot: 'var(--red)', label: 'error', detail: previewStatus.message }
+      default: return { dot: 'var(--text-muted)', label: 'idle', detail: '待機中' }
     }
   }, [previewStatus])
 
   const lineCount = useMemo(() => code.split('\n').length, [code])
   const charCount = code.length
 
+  // Center area renders editor area + console (if shown)
+  const centerArea = (
+    <div className="flex flex-col h-full w-full min-w-0">
+      {showConsole ? (
+        <Splitter storageKey="bide.split.v3.console" defaultPercent={70} min={30} max={92} orientation="horizontal">
+          <EditorArea
+            activeTab={activeTab}
+            previewOpen={previewOpen}
+            onSelectTab={handleSelectTab}
+            onClosePreview={closePreviewTab}
+            onRun={runPreview}
+            code={code}
+            onCodeChange={setCode}
+            onCursorChange={handleCursorChange}
+            cursor={cursor}
+            lineCount={lineCount}
+            charCount={charCount}
+            previewCode={previewCode}
+            onPreviewStatus={setPreviewStatus}
+            editorFlashKey={editorFlashKey}
+            statusInfo={statusInfo}
+          />
+          <Console onClose={() => setShowConsole(false)} />
+        </Splitter>
+      ) : (
+        <EditorArea
+          activeTab={activeTab}
+          previewOpen={previewOpen}
+          onSelectTab={handleSelectTab}
+          onClosePreview={closePreviewTab}
+          onRun={runPreview}
+          code={code}
+          onCodeChange={setCode}
+          onCursorChange={handleCursorChange}
+          cursor={cursor}
+          lineCount={lineCount}
+          charCount={charCount}
+          previewCode={previewCode}
+          onPreviewStatus={setPreviewStatus}
+          editorFlashKey={editorFlashKey}
+          statusInfo={statusInfo}
+        />
+      )}
+    </div>
+  )
+
+  // Compose center + chat (right pane)
+  const centerWithChat = showChat ? (
+    <Splitter storageKey="bide.split.v3.chat" defaultPercent={70} min={45} max={88} orientation="vertical">
+      {centerArea}
+      <ChatPanel
+        messages={messages}
+        isGenerating={isGenerating}
+        onSend={sendMessage}
+        onAbort={abortGeneration}
+        onApplyCode={applyCode}
+        inputRef={chatInputRef}
+        modelState={llm.state}
+        onPickModel={() => setPickerOpen(true)}
+        onSwitchModel={() => setPickerOpen(true)}
+        onUnloadModel={llm.unloadModel}
+        onCancelLoad={llm.cancelLoad}
+        onRetryLoad={retryLoad}
+      />
+    </Splitter>
+  ) : centerArea
+
+  // Compose explorer + (center + chat)
+  const mainArea = showExplorer ? (
+    <Splitter storageKey="bide.split.v3.tree" defaultPercent={18} min={10} max={32} orientation="vertical">
+      <FileTreePlaceholder onClose={() => setShowExplorer(false)} />
+      {centerWithChat}
+    </Splitter>
+  ) : centerWithChat
+
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg)' }}>
       <Header llmState={llm.state} statusLabel={statusInfo.label} statusDot={statusInfo.dot} />
 
       <div className="flex flex-1 overflow-hidden">
-        <Splitter storageKey="bide.split.tree" defaultPercent={15} min={10} max={32} orientation="vertical">
-          <FileTreePlaceholder />
-
-          <Splitter storageKey="bide.split.chat" defaultPercent={70} min={50} max={85} orientation="vertical">
-            {/* Center area: editor+preview on top, console at bottom */}
-            <Splitter storageKey="bide.split.console" defaultPercent={75} min={40} max={100} orientation="horizontal">
-              {/* Top: editor | preview side-by-side */}
-              <Splitter storageKey="bide.split.preview" defaultPercent={55} min={30} max={80} orientation="vertical">
-                {/* Editor */}
-                <div className="flex flex-col min-w-0 w-full h-full">
-                  <div
-                    className="flex items-center justify-between px-4 shrink-0"
-                    style={{ height: '34px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                  >
-                    <span className="text-sm tabular font-medium" style={{ color: 'var(--text)' }}>main.tsx</span>
-                    <button
-                      onClick={() => setPreviewCode(code)}
-                      className="press flex items-center gap-1.5 px-3 text-xs font-medium"
-                      style={{ height: '22px', color: 'var(--bg)', background: 'var(--green)', boxShadow: '0 0 8px var(--green-dim)' }}
-                      title="⌘Enter で即時実行"
-                    >
-                      <Play size={10} />
-                      実行
-                    </button>
-                  </div>
-                  <div
-                    key={editorFlashKey}
-                    className={`flex-1 overflow-hidden relative ${editorFlashKey > 0 ? 'animate-flash' : ''}`}
-                  >
-                    <Editor value={code} onChange={setCode} onCursorChange={handleCursorChange} />
-                  </div>
-                  <div
-                    className="flex items-center gap-4 px-4 shrink-0 tabular"
-                    style={{ height: '22px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}
-                  >
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {cursor.line.toString().padStart(2, '0')}:{cursor.col.toString().padStart(2, '0')}
-                    </span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {lineCount}行 · {charCount}字
-                    </span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>TSX</span>
-                    <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
-                      ⌘Enter 実行 · ⌘K チャット
-                    </span>
-                  </div>
-                </div>
-
-                {/* Preview */}
-                <div className="flex flex-col min-w-0 w-full h-full">
-                  <div
-                    className="flex items-center justify-between px-4 shrink-0"
-                    style={{ height: '34px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-                  >
-                    <span className="text-sm font-medium" style={{ color: 'var(--text)', letterSpacing: '0.04em' }}>
-                      🌐 Preview
-                    </span>
-                    <span
-                      className="text-xs flex items-center gap-1.5"
-                      style={{
-                        color:
-                          previewStatus.kind === 'error'
-                            ? 'var(--red)'
-                            : previewStatus.kind === 'compiling'
-                            ? 'var(--amber)'
-                            : 'var(--text-muted)',
-                      }}
-                      title={previewStatus.kind === 'error' ? previewStatus.message : undefined}
-                    >
-                      <span
-                        className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ background: statusInfo.dot, boxShadow: `0 0 4px ${statusInfo.dot}` }}
-                      />
-                      <span className="tabular">{statusInfo.detail}</span>
-                    </span>
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    {previewCode ? (
-                      <Preview code={previewCode} onStatus={setPreviewStatus} />
-                    ) : (
-                      <div className="h-full flex items-center justify-center" style={{ background: 'var(--surface)' }}>
-                        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                          「<span style={{ color: 'var(--green)' }}>実行</span>」またはコード編集で表示
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Splitter>
-
-              {/* Bottom: Console */}
-              <Console />
-            </Splitter>
-
-            {/* Right: Chat */}
-            <ChatPanel
-              messages={messages}
-              isGenerating={isGenerating}
-              onSend={sendMessage}
-              onAbort={abortGeneration}
-              onApplyCode={applyCode}
-              inputRef={chatInputRef}
-              modelState={llm.state}
-              onPickModel={() => setPickerOpen(true)}
-              onSwitchModel={() => setPickerOpen(true)}
-              onUnloadModel={llm.unloadModel}
-              onCancelLoad={llm.cancelLoad}
-              onRetryLoad={retryLoad}
-            />
-          </Splitter>
-        </Splitter>
+        <ActivityBar
+          showExplorer={showExplorer}
+          showChat={showChat}
+          showConsole={showConsole}
+          onToggleExplorer={() => setShowExplorer((v) => !v)}
+          onToggleChat={() => setShowChat((v) => !v)}
+          onToggleConsole={() => setShowConsole((v) => !v)}
+        />
+        {mainArea}
       </div>
 
       <ModelPicker
@@ -317,6 +334,93 @@ function AppInner() {
         loadProgress={llm.state.kind === 'loading' ? llm.state.progress : 0}
         loadText={llm.state.kind === 'loading' ? llm.state.progressText : ''}
       />
+    </div>
+  )
+}
+
+type EditorAreaProps = {
+  activeTab: TabKind
+  previewOpen: boolean
+  onSelectTab: (tab: TabKind) => void
+  onClosePreview: () => void
+  onRun: () => void
+  code: string
+  onCodeChange: (s: string) => void
+  onCursorChange: (line: number, col: number) => void
+  cursor: { line: number; col: number }
+  lineCount: number
+  charCount: number
+  previewCode: string
+  onPreviewStatus: (s: PreviewStatus) => void
+  editorFlashKey: number
+  statusInfo: { dot: string; label: string; detail: string }
+}
+
+function EditorArea(props: EditorAreaProps) {
+  return (
+    <div className="flex flex-col h-full w-full min-w-0">
+      <EditorTabs
+        active={props.activeTab}
+        previewOpen={props.previewOpen}
+        onSelect={props.onSelectTab}
+        onClosePreview={props.onClosePreview}
+        onRun={props.onRun}
+      />
+
+      {props.activeTab === 'main' && (
+        <>
+          <div
+            key={props.editorFlashKey}
+            className={`flex-1 overflow-hidden relative ${props.editorFlashKey > 0 ? 'animate-flash' : ''}`}
+          >
+            <Editor value={props.code} onChange={props.onCodeChange} onCursorChange={props.onCursorChange} />
+          </div>
+          <div
+            className="flex items-center gap-4 px-4 shrink-0 tabular"
+            style={{ height: '22px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}
+          >
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {props.cursor.line.toString().padStart(2, '0')}:{props.cursor.col.toString().padStart(2, '0')}
+            </span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {props.lineCount}行 · {props.charCount}字
+            </span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>TSX</span>
+            <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
+              ⌘B Explorer · ⌘J Console · ⌘\ Chat
+            </span>
+          </div>
+        </>
+      )}
+
+      {props.activeTab === 'preview' && props.previewOpen && (
+        <>
+          <div className="flex-1 overflow-hidden">
+            {props.previewCode ? (
+              <Preview code={props.previewCode} onStatus={props.onPreviewStatus} />
+            ) : (
+              <div className="h-full flex items-center justify-center" style={{ background: 'var(--surface)' }}>
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  「<span style={{ color: 'var(--green)' }}>実行</span>」またはコード編集で表示
+                </span>
+              </div>
+            )}
+          </div>
+          <div
+            className="flex items-center gap-3 px-4 shrink-0 tabular"
+            style={{ height: '22px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}
+          >
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full"
+              style={{ background: props.statusInfo.dot, boxShadow: `0 0 4px ${props.statusInfo.dot}` }}
+            />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{props.statusInfo.detail}</span>
+            <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
+              ⌘Enter で再実行
+            </span>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -358,10 +462,10 @@ function Header({
         </span>
       </div>
       <span style={{ color: 'var(--text-dim)' }}>/</span>
-      <span className="text-xs truncate tabular" style={{ color: 'var(--text-dim)', maxWidth: '260px' }}>
+      <span className="text-xs truncate tabular" style={{ color: 'var(--text-muted)', maxWidth: '260px' }}>
         {modelLabel}
       </span>
-      <span className="ml-auto flex items-center gap-2 text-xs tabular" style={{ color: 'var(--text-dim)' }}>
+      <span className="ml-auto flex items-center gap-2 text-xs tabular" style={{ color: 'var(--text-muted)' }}>
         <span
           className="inline-block w-1.5 h-1.5 rounded-full"
           style={{

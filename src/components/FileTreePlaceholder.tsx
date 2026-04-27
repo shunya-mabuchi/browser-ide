@@ -1,13 +1,38 @@
-export function FileTreePlaceholder() {
+type Props = {
+  onClose: () => void
+}
+
+export function FileTreePlaceholder({ onClose }: Props) {
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--surface2)', borderRight: '1px solid var(--border)' }}>
       <div
-        className="px-4 flex items-center"
+        className="px-3 flex items-center justify-between shrink-0"
         style={{ height: '34px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}
       >
-        <span className="text-sm font-medium" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-          📁 EXPLORER
+        <span
+          className="font-medium"
+          style={{ color: 'var(--text-muted)', letterSpacing: '0.1em', fontSize: 12 }}
+        >
+          EXPLORER
         </span>
+        <button
+          onClick={onClose}
+          className="press"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 16,
+            lineHeight: 1,
+            padding: '0 4px',
+          }}
+          title="閉じる (⌘B)"
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)' }}
+        >
+          ×
+        </button>
       </div>
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="text-center" style={{ maxWidth: 200 }}>
